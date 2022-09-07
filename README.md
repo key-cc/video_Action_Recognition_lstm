@@ -11,11 +11,11 @@ I will mainly use the [UCF-101 dataset](https://www.crcv.ucf.edu/data/UCF101.php
 ## Setup
 
 ```
-$ cd data/              
-$ bash download_ucf101.sh     # Downloads the UCF-101 dataset (~7.2 GB)
-$ unrar x UCF101.rar          # Unrars dataset
-$ unzip ucfTrainTestlist.zip  # Unzip train / test split
-$ python3 extract_frames.py   # Extracts frames from the video (~26.2 GB, go grab a coffee for this)
+cd data/              
+bash download_ucf101.sh     # Downloads the UCF-101 dataset (~7.2 GB)
+unrar x UCF101.rar          # Unrars dataset
+unzip UCF101TrainTestSplits-RecognitionTask.zip  # Unzip train / test split
+python3 extract_frames.py   # Extracts frames from the video (~26.2 GB, go grab a coffee for this)
 ```
 
 ## ConvLSTM
