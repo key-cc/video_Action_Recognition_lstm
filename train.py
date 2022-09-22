@@ -6,6 +6,7 @@ from models import *
 from dataset import *
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
+from log import *
 import argparse
 import time
 import datetime
@@ -94,7 +95,7 @@ if __name__ == "__main__":
             test_metrics["loss"].append(loss)
             test_metrics["acc"].append(acc)
             # Log test performance
-            sys.stdout.write(
+            logger.info(
                 "\rTesting -- [Batch %d/%d] [Loss: %f (%f), Acc: %.2f%% (%.2f%%)]"
                 % (
                     batch_i,
@@ -107,68 +108,69 @@ if __name__ == "__main__":
             )
         model.train()
         print("")
+    
 
+    logger = get_logger('lstm.log')
+
+    logger.info('start training!')
     for epoch in range(opt.num_epochs):
-        epoch_metrics = {"loss": [], "acc": []}
-        prev_time = time.time()
-        print(f"--- Epoch {epoch} ---")
-        for batch_i, (X, y) in enumerate(train_dataloader):
-
-            if X.size(0) == 1:
+      epoch_metrics = {"loss": [], "acc": []}
+      prev_time = time.time()
+      print(f"--- Epoch {epoch} ---")
+      for batch_i, (X, y) in enumerate(train_dataloader):
+        if X.size(0) == 1:
                 continue
 
-            image_sequences = Variable(X.to(device), requires_grad=True)
-            labels = Variable(y.to(device), requires_grad=False)
+        image_sequences = Variable(X.to(device), requires_grad=True)
+        labels = Variable(y.to(device), requires_grad=False)
 
-            optimizer.zero_grad()
+        optimizer.zero_grad()
 
-            # Reset LSTM hidden state
-            model.lstm.reset_hidden_state()
+        # Reset LSTM hidden state
+        model.lstm.reset_hidden_state()
 
-            # Get sequence predictions
-            predictions = model(image_sequences)
+        # Get sequence predictions
+        predictions = model(image_sequences)
+        loss = cls_criterion(predictions, labels)
+        acc = 100 * (predictions.detach().argmax(1) == labels).cpu().numpy().mean()
+        loss.backward()
+        optimizer.step()
 
-            # Compute metrics
-            loss = cls_criterion(predictions, labels)
-            acc = 100 * (predictions.detach().argmax(1) == labels).cpu().numpy().mean()
+        # Keep track of epoch metrics
+        epoch_metrics["loss"].append(loss.item())
+        epoch_metrics["acc"].append(acc)
 
-            loss.backward()
-            optimizer.step()
+        # Determine approximate time left
+        batches_done = epoch * len(train_dataloader) + batch_i
+        batches_left = opt.num_epochs * len(train_dataloader) - batches_done
+        time_left = datetime.timedelta(seconds=batches_left * (time.time() - prev_time))
+        prev_time = time.time()
 
-            # Keep track of epoch metrics
-            epoch_metrics["loss"].append(loss.item())
-            epoch_metrics["acc"].append(acc)
-
-            # Determine approximate time left
-            batches_done = epoch * len(train_dataloader) + batch_i
-            batches_left = opt.num_epochs * len(train_dataloader) - batches_done
-            time_left = datetime.timedelta(seconds=batches_left * (time.time() - prev_time))
-            prev_time = time.time()
-
-            # Print log
-            sys.stdout.write(
-                "\r[Epoch %d/%d] [Batch %d/%d] [Loss: %f (%f), Acc: %.2f%% (%.2f%%)] ETA: %s"
-                % (
-                    epoch,
-                    opt.num_epochs,
-                    batch_i,
-                    len(train_dataloader),
-                    loss.item(),
-                    np.mean(epoch_metrics["loss"]),
-                    acc,
-                    np.mean(epoch_metrics["acc"]),
-                    time_left,
-                )
-            )
-
-            # Empty cache
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-        # Evaluate the model on the test set
-        test_model(epoch)
-
-        # Save model checkpoint
-        if epoch % opt.checkpoint_interval == 0:
+        # Print log
+        logger.info(
+                  "\r[Epoch %d/%d] [Batch %d/%d] [Loss: %f (%f), Acc: %.2f%% (%.2f%%)] ETA: %s"
+                  % (
+                      epoch,
+                      opt.num_epochs,
+                      batch_i,
+                      len(train_dataloader),
+                      loss.item(),
+                      np.mean(epoch_metrics["loss"]),
+                      acc,
+                      np.mean(epoch_metrics["acc"]),
+                      time_left,
+                    )
+                   )
+   
+        # Empty cache
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+      # Evaluate the model on the test set
+      test_model(epoch)
+      # Save model checkpoint
+      if epoch % opt.checkpoint_interval == 0:
             os.makedirs("model_checkpoints", exist_ok=True)
             torch.save(model.state_dict(), f"model_checkpoints/{model.__class__.__name__}_{epoch}.pth")
+    
+    logger.info('finish training!')
+
